@@ -1,0 +1,47 @@
+{
+  "name": "receipt-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+
+    "db:generate": "dotenv -e .env.local -- drizzle-kit generate",
+    "db:migrate": "dotenv -e .env.local -- drizzle-kit migrate",
+    "db:studio": "dotenv -e .env.local -- drizzle-kit studio",
+    "db:push": "dotenv -e .env.local -- drizzle-kit push",
+
+    "inngest:dev": "npx inngest-cli@latest dev"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "latest",
+    "@clerk/nextjs": "latest",
+    "@supabase/supabase-js": "latest",
+    "@tanstack/react-query": "latest",
+    "@trpc/client": "next",
+    "@trpc/react-query": "next",
+    "@trpc/server": "next",
+    "drizzle-orm": "latest",
+    "inngest": "latest",
+    "next": "15.x",
+    "postgres": "latest",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "resend": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dotenv-cli": "latest",
+    "drizzle-kit": "latest",
+    "eslint": "^9",
+    "eslint-config-next": "15.x",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
