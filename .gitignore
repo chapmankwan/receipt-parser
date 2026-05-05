@@ -53,11 +53,6 @@ terraform/*.tfstate.backup
 terraform/.terraform/
 terraform/terraform.tfvars
 
-
-# Secrets
-.env.local
-.env.*.local
-
 # Drizzle
 src/db/migrations/*.sql
 
