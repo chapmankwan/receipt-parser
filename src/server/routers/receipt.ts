@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, count, sql } from "drizzle-orm";
 import { router, protectedProcedure } from "@/server/trpc";
 import { receipts, lineItems, stores, categories } from "@/db/schema";
 import type { NewReceipt, NewLineItem, NewStore } from "@/db/schema";
@@ -281,7 +281,7 @@ export const receiptRouter = router({
         with:  { receipt: true },
       });
 
-      if (!item || item?.receipt.userId !== ctx.user.id) {
+      if (!item || item.receipt.userId !== ctx.user.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Line item not found" });
       }
 
@@ -327,6 +327,73 @@ export const receiptRouter = router({
         limit:   input.limit,
         offset:  input.offset,
         with:    { store: true },
+      });
+    }),
+
+
+  // -------------------------------------------------------------------------
+  // receipt.listWithCounts
+  //
+  // Same as receipt.list but includes total item count and unconfirmed count
+  // per receipt. Uses a SQL aggregation so it's one query, not N+1.
+  //
+  // confirmedCount  — items the user has reviewed
+  // totalCount      — all items on the receipt
+  // needsReview     — true if any items are unconfirmed
+  // -------------------------------------------------------------------------
+
+  listWithCounts: protectedProcedure
+    .input(
+      z.object({
+        limit:  z.number().min(1).max(100).default(20),
+        offset: z.number().min(0).default(0),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      // Fetch receipts with their store
+      const rows = await ctx.db.query.receipts.findMany({
+        where:   eq(receipts.userId, ctx.user.id),
+        orderBy: [desc(receipts.purchasedOn)],
+        limit:   input.limit,
+        offset:  input.offset,
+        with:    { store: true },
+      });
+
+      if (rows.length === 0) return [];
+
+      // Aggregate item counts per receipt in a single query
+      const receiptIds = rows.map((r) => r.id);
+
+      const counts = await ctx.db
+        .select({
+          receiptId:      lineItems.receiptId,
+          totalCount:     count(),
+          confirmedCount: count(lineItems.userConfirmed),
+        })
+        .from(lineItems)
+        .where(
+          receiptIds.length === 1
+            ? eq(lineItems.receiptId, receiptIds[0]!)
+            : sql`${lineItems.receiptId} = ANY(ARRAY[${sql.join(
+                receiptIds.map((id) => sql`${id}::uuid`),
+                sql`, `
+              )}])`
+        )
+        .groupBy(lineItems.receiptId);
+
+      // Build a lookup map for O(1) access
+      const countMap = new Map(
+        counts.map((c) => [c.receiptId, c])
+      );
+
+      return rows.map((receipt) => {
+        const c = countMap.get(receipt.id);
+        return {
+          ...receipt,
+          totalCount:     c?.totalCount     ?? 0,
+          confirmedCount: c?.confirmedCount ?? 0,
+          needsReview:    (c?.confirmedCount ?? 0) < (c?.totalCount ?? 0),
+        };
       });
     }),
 
